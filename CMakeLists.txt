@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.6 FATAL_ERROR)
 project(Lexicon)
+SET(LIBRARY_OUTPUT_PATH  ${PROJECT_BINARY_DIR}/lib)
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
@@ -19,5 +20,6 @@ endif()
 INCLUDE_DIRECTORIES(include)
 
 ##### Subdirectories #####
+add_subdirectory(src)
 add_subdirectory(test-harness)
 
