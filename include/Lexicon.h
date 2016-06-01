@@ -37,7 +37,7 @@ private:
     std::map<char,std::unique_ptr<TrieNode>> suffixes;
   } TrieNode;
   
-  typedef map<char, std::unique_ptrTrieNode>> SuffixesT;
+  typedef map<char, std::unique_ptr<TrieNode>> SuffixesT;
   typedef SuffixesT::iterator SuffixesTItr;
   typedef SuffixesT::const_iterator SuffixesTConstItr;
 
@@ -47,18 +47,18 @@ private:
     SuffixesTItr curr_suffix;
   } StackElement;
 
-  constTrieNode* findNode(const std::string& str) const;
+  const TrieNode* findNode(const std::string& str) const;
   
-  std::pair<std::map<char, std::unique_ptrTrieNode>>::iterator,TrieNode*> 
+  std::pair<std::map<char, std::unique_ptr<TrieNode>>::iterator, TrieNode*> 
   findNodeAndKeyAtPrefix(const std::string& str);
   bool removePrefixHelper(const std::string& prefix, int prefix_index, 
      TrieNode* curr, bool is_prefix);
-  bool removeSubtreeTrieNode* curr);
-  std::vector<std::string> toSTLHelperTrieNode*TrieNode); 
+  bool removeSubtree(stack<StackElement>* delete_stack);
+  std::vector<std::string> toSTLHelper(TrieNode* curr); 
  TrieNode* ensureNodeExists(const std::string& str);
 
   /* Members */ 
-  std::unique_ptrTrieNode> root_;
+  std::unique_ptr<TrieNode> root_;
   int size_;
 };
  

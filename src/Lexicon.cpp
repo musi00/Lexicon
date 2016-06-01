@@ -20,7 +20,7 @@ bool Lexicon::containsPrefix(const string& prefix) const {
 }
  
 bool Lexicon::contains(const string& word) const {
- const node *found = findNode(word);
+ const Trienode* found = findNode(word);
  return found != nullptr && found->isWord;
 }
 
@@ -36,11 +36,11 @@ bool Lexicon::remove (const string& word) {
 
 bool Lexicon::removePrefix (const string& prefix) {
   /* In order to remove all words with a prefix:
-   * Step 1: the (key,node) pair stored at  last character of the prefix must 
-   * be removed from the node containing it.
+   * Step 1: the (key,TrieNode) pair stored at  last character of the prefix must 
+   * be removed from the TrieNode containing it.
    * Step 2: all other prefix letters */
-/*  map<char, unique_ptr<node>>::iterator key_at_prefix;
-  node* node_containing_key;;
+/*  map<char, unique_ptr<TrieNode>>::iterator key_at_prefix;
+  TrieNode* node_containing_key;;
   tie(key_at_prefix, node_containing_key) = findNodeAndKeyAtPrefix(prefix);
   if (node_containing_key) {
     size_ -= node_containing_key->suffixes.size();
@@ -52,10 +52,10 @@ bool Lexicon::removePrefix (const string& prefix) {
 }
 
 bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index, 
-    node* curr, bool isPrefix) {
+    TrieNode* curr, bool isPrefix) {
   /* curr only becomes null when we cannot find the prefix */
   if (curr != nullptr) {
-    map<char, unique_ptr<node>>::iterator suffixes_itr = 
+    map<char, unique_ptr<TrieNode>>::iterator suffixes_itr = 
       curr->suffixes.find(prefix[prefix_index]);
     /* if current prefix letter is not found then quit recursion and return false */
     if (suffixes_itr != curr->suffixes.end()) {
@@ -77,7 +77,7 @@ bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index,
           --size_;
         }
         else { //isPrefix
-          stack<pair<node*,SuffixTItr>> delete_stack;;
+          stack<pair<TrieNode*,SuffixTItr>> delete_stack;;
           delete_stack..push(make_pair(suffix_itr->second.get(),
                 suffix_itr->second->suffixes.begin()));
           char first_node_suffix = suffix_itr->second->suffixes.begin()->first;
@@ -103,10 +103,10 @@ bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index,
 }
 
 /* tail recursive implementation using a stack variable*/
-bool Lexicon::removeSubtree (const string& prefix, stack<node*, SuffixTItr>* delete_stack) {
+bool Lexicon::removeSubtree (const string& prefix, stack<TrieNode*, SuffixTItr>* delete_stack) {
   /* it's easier to work with a reference */
-  stack<node*, SuffixTItr>& delete_stack = *delete_stack_ptr;
-  node* curr = delete_stack.top().first;
+  stack<TrieNode*, SuffixTItr>& delete_stack = *delete_stack_ptr;
+  TrieNode* curr = delete_stack.top().first;
   SuffixTItr suffix_to_remove = delete_stack.top().second;
   /* base case: curr node is a leaf so delete all its ancestor prefixes*/
   if (curr->suffixes.empty()) {
@@ -135,10 +135,10 @@ bool Lexicon::removeSubtree (const string& prefix, stack<node*, SuffixTItr>* del
 
 }
 
-/*void Lexicon::mergeNodes (node* target, node* src) {
+/*void Lexicon::mergeNodes (TrieNode* target, TrieNode* src) {
   // iterate over source key,value pairs 
   for (auto& src_kv : src.suffixes) {
-    map<char, unique_ptr<node>>::iterator target_itr;
+    map<char, unique_ptr<TrieNode>>::iterator target_itr;
     target_itr = target.find(src_kv.first);
     if (target_itr == target.end()) {
       target.suffixes[src_kv.first] = move(src_kv.second);
@@ -165,9 +165,9 @@ set<string> Lexicon::toSTLSet() {
   return word_set;
 }
 
-vector<string> Lexicon::toSTLHelper(node* node) {
+vector<string> Lexicon::toSTLHelper(TrieNode* curr) {
   vector<string> node_words;
-  for (auto& key_value : node->suffixes) {
+  for (auto& key_value : curr->suffixes) {
     vector<string> child_words = toSTLHelper(key_value.second.get());
     for (auto& cw : child_words) {
       node_words.emplace_back(key_value.first + cw);
@@ -189,21 +189,21 @@ ostream& operator <<(std::ostream& os, const Lexicon& lex) {}
 
 istream& operator >>(std::istream& is, Lexicon& lex) {}
 
-const Lexicon::node* Lexicon::findNode(const std::string& str) const {
-  node* curr = root_.get();
+const Lexicon::TrieNode* Lexicon::findNode(const std::string& str) const {
+  TrieNode* curr = root_.get();
   for (int i = 0; i < str.size() && curr; ++i) {
     char c = str[i];
-    map<char, unique_ptr<node>>::const_iterator suffixes_itr = curr->suffixes.find(c);    
+    map<char, unique_ptr<TrieNode>>::const_iterator suffixes_itr = curr->suffixes.find(c);    
     curr = suffixes_itr != curr->suffixes.end() ? suffixes_itr->second.get() : nullptr;
   }
   return curr;;
 }
 
-pair<map<char, unique_ptr<Lexicon::node>>::iterator, Lexicon::node*> 
+pair<map<char, unique_ptr<Lexicon::TrieNode>>::iterator, Lexicon::TrieNode*> 
 Lexicon::findNodeAndKeyAtPrefix(const std::string& str) {
-  node* parent = nullptr;
-  node* curr = root_.get();
-  map<char, unique_ptr<node>>::iterator prefix_itr;
+  TrieNode* parent = nullptr;
+  TrieNode* curr = root_.get();
+  map<char, unique_ptr<TrieNode>>::iterator prefix_itr;
   for (int i = 0; i < str.size() && curr; ++i) {
     char c = str[i];
     prefix_itr = curr->suffixes.find(c);
@@ -219,17 +219,17 @@ Lexicon::findNodeAndKeyAtPrefix(const std::string& str) {
   return curr ? make_pair(prefix_itr, parent) : make_pair(prefix_itr, nullptr);
 }
  
-Lexicon::node* Lexicon::ensureNodeExists(const std::string& str) {
+Lexicon::TrieNode* Lexicon::ensureNodeExists(const std::string& str) {
   if (!root_)
-    root_.reset(new node);
+    root_.reset(new TrieNode);
  
-  node* curr = root_.get();
+  TrieNode* curr = root_.get();
   for (char c: str) {
     /* if current character is not found in the node, add the character to this node
      * and create a child node for this character */
-    map<char,unique_ptr<node>>::iterator map_itr = curr->suffixes.find(c);
+    map<char,unique_ptr<TrieNode>>::iterator map_itr = curr->suffixes.find(c);
     if (map_itr == curr->suffixes.end()) 
-      curr->suffixes[c] = unique_ptr<node> (new node);
+      curr->suffixes[c] = unique_ptr<TrieNode> (new TrieNode);
     
     /* move down the tree */
     curr = curr->suffixes.at(c).get();
