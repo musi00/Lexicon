@@ -1,4 +1,7 @@
 #include <Lexicon.h>
+#include <fstream>
+#include <sstream>
+
 using namespace std;
 
 Lexicon::Lexicon() :
@@ -8,19 +11,36 @@ Lexicon::Lexicon() :
 
 void Lexicon::add(const string& word) {
  ensureNodeExists(word)->isWord = true;
+ word_set_.insert(word);
  ++size_;
 }
  
-void Lexicon::addWordsFromFile (std::istream& input) {}
-void Lexicon::addWordsFromFile (const std::string& filename) {}
-void Lexicon::clear() {} 
+void Lexicon::addWordsFromFile (std::istream& input) {
+  string word;
+  while(getline(input,word)) {
+    add(word);
+  }
+}
+
+void Lexicon::addWordsFromFile (const std::string& filename) {
+  ifstream file(filename);
+  if (file)
+    addWordsFromFile(file);
+  file.close();
+}
+
+void Lexicon::clear() {
+  root_.reset(nullptr);
+  word_set_.clear();
+  size_ = 0;
+} 
  
 bool Lexicon::containsPrefix(const string& prefix) const {
   return findNode(prefix) != nullptr;
 }
  
 bool Lexicon::contains(const string& word) const {
- const Trienode* found = findNode(word);
+ const TrieNode* found = findNode(word);
  return found != nullptr && found->isWord;
 }
 
@@ -31,32 +51,40 @@ bool Lexicon::isEmpty() const {
 void Lexicon::mapAll(function<void (string)> func) const {}
 
 bool Lexicon::remove (const string& word) {
-  return removePrefix(word);
+  return removePrefixHelper(word, 0, root_.get(), false);
 }
 
 bool Lexicon::removePrefix (const string& prefix) {
-  /* In order to remove all words with a prefix:
-   * Step 1: the (key,TrieNode) pair stored at  last character of the prefix must 
-   * be removed from the TrieNode containing it.
-   * Step 2: all other prefix letters */
-/*  map<char, unique_ptr<TrieNode>>::iterator key_at_prefix;
-  TrieNode* node_containing_key;;
-  tie(key_at_prefix, node_containing_key) = findNodeAndKeyAtPrefix(prefix);
-  if (node_containing_key) {
-    size_ -= node_containing_key->suffixes.size();
-    node_containing_key->suffixes.erase(key_at_prefix);
-    return true;
+  return removePrefixHelper(prefix, 0, root_.get(), true);
+}
+
+int Lexicon::size() const {
+  return size_;
+}
+
+set<string> Lexicon::toSTLSet() {
+  return word_set_;
+}
+
+string Lexicon::toString() const {
+  string lexicon_str;
+  for (auto& word:word_set_) {
+    lexicon_str += "{" + word + "}, ";
   }
-  return false;*/
-  return removePrefixHelper(prefix, 0, root_.get());
+  return lexicon_str.substr(0,lexicon_str.length()-2);
+}
+
+ostream& operator <<(ostream& out, const Lexicon& lex) {
+  string lexicon_str = lex.toString();
+  out << lexicon_str;;
+  return out;
 }
 
 bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index, 
     TrieNode* curr, bool isPrefix) {
   /* curr only becomes null when we cannot find the prefix */
   if (curr != nullptr) {
-    map<char, unique_ptr<TrieNode>>::iterator suffixes_itr = 
-      curr->suffixes.find(prefix[prefix_index]);
+    SuffixesTItr suffixes_itr = curr->suffixes.find(prefix[prefix_index]);
     /* if current prefix letter is not found then quit recursion and return false */
     if (suffixes_itr != curr->suffixes.end()) {
       /* base case: we have matched the prefix or word to remove */
@@ -65,33 +93,36 @@ bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index,
         /* if..else logic only removes the word from the tree if it is not a prefix
          * when it is a prefix the entire substree of the prefix is removed */
         if (!isPrefix) {
-          /* if word is a leaf then remove it, otherwise simply mark it as not a word
-           * when it is not a leaf it means that it is a word but it is also a prefix
+          /* if word is a leaf then remove it, otherwise simply mark it as not a word.
+           * When not a leaf it means that it is also a prefix
            * for bigger words (e.g cat is a prefix for catepillar). That is why we 
            * can't remove it */
           if (suffixes_itr->second->suffixes.empty())
             curr->suffixes.erase(suffixes_itr);
           else
             suffixes_itr->second->isWord = false;
-          words_set_.remove(prefix);
+          /* in both cases the word needs to be removed from the word set */
+          word_set_.erase(prefix);
           --size_;
         }
-        else { //isPrefix
-          stack<pair<TrieNode*,SuffixTItr>> delete_stack;;
-          delete_stack..push(make_pair(suffix_itr->second.get(),
-                suffix_itr->second->suffixes.begin()));
-          char first_node_suffix = suffix_itr->second->suffixes.begin()->first;
-          /* Remove subtree at current suffix (this updates size and word_set) */
-          removeSubtree(prefix + first_node_suffix, &delete_stack);
+        else { /* isPrefix */
+          stack<StackElement> delete_stack;;
+          char first_suffix = suffixes_itr->second->suffixes.begin()->first;
+          delete_stack.push({suffixes_itr->second.get(), 
+              prefix + first_suffix,
+              suffixes_itr->second->suffixes.begin()});
+          /* Remove subtree of current suffix (this updates size and word_set_) */
+          removeSubtree(&delete_stack);
           /* After removeSubstree node at at last letter of prefix is empty.
            * Therefore the last letter of the prefix must also be removed
            * from the tree */
-          curr->suffixes.erase(suffix_itr);
+          curr->suffixes.erase(suffixes_itr);
         }
         return true;
       }
-      /* recursive case: advance prefix position and traverse the rest */
-      if (removePrefixHelper(prefix, ++prefix_index, suffixes_itr->second.get())) {
+      /* recursive case: advance prefix position and traverse deeper into the tree */
+      if (removePrefixHelper(prefix, ++prefix_index, suffixes_itr->second.get(),
+          isPrefix)) {
         /* if this node is now a leaf then we can remove this node as well */
         if (suffixes_itr->second->suffixes.empty())
           curr->suffixes.erase(suffixes_itr);
@@ -102,92 +133,45 @@ bool Lexicon::removePrefixHelper(const string& prefix, int prefix_index,
   return false;
 }
 
-/* tail recursive implementation using a stack variable*/
-bool Lexicon::removeSubtree (const string& prefix, stack<TrieNode*, SuffixTItr>* delete_stack) {
+/* tail recursive implementation using an explicit stack*/
+void Lexicon::removeSubtree (stack<StackElement>* delete_stack_ptr) {
   /* it's easier to work with a reference */
-  stack<TrieNode*, SuffixTItr>& delete_stack = *delete_stack_ptr;
-  TrieNode* curr = delete_stack.top().first;
-  SuffixTItr suffix_to_remove = delete_stack.top().second;
-  /* base case: curr node is a leaf so delete all its ancestor prefixes*/
-  if (curr->suffixes.empty()) {
-    delete_stack.pop();
-    words_set_.remove(prefix);
-    --size_;
-    
-    while (!delete_stack..empty()) {
-      curr = nodes_to_delete.top().first;
+  stack<StackElement>& delete_stack = *delete_stack_ptr;
+  /* when the delete stack is empty we are done */
+  if (!delete_stack.empty()) {
 
-      curr->suffixes.clear();
-      nodes_to_delete.pop();
+    StackElement stack_top = delete_stack.top();
+
+    /* Base case: TrieNode of current suffix is empty */
+    if (stack_top.suffix->second->suffixes.empty()) {
+      /* if this prefix was a word then delete it */
+      if (stack_top.suffix->second->isWord) {
+        word_set_.erase(stack_top.prefix);
+        --size_;
+      }
+      /* delete this suffix from current node and pop() element from stack */
+      SuffixesTItr next_suffix = stack_top.node->suffixes.erase(stack_top.suffix);
+      delete_stack.pop();
+      /* if there is a next suffix in current node, push onto the stack */
+      if (next_suffix != stack_top.node->suffixes.end()) {
+        string next_prefix = stack_top.prefix.substr(0,stack_top.prefix.length()-1)
+          + next_suffix->first;
+        delete_stack.push({stack_top.node, next_prefix, next_suffix});
+      }
     }
-  }
-  
-  /* recursive case: curr not is not a leaf so add all its children onto the stack
-   * and traverse the tree */
-  SuffixesTItr suffixes_itr = curr->suffixes.begin();
-  while (suffixes_itr != curr->suffixes.end()) {
-    char suffix = suffixes_itr.first;
-    delete_stack.push(make_pair(curr, suffixes_itr));
-    removeSubtree (prefix + suffix, delete_stack);
-    ++suffixes_itr;
-  }
-
-
-}
-
-/*void Lexicon::mergeNodes (TrieNode* target, TrieNode* src) {
-  // iterate over source key,value pairs 
-  for (auto& src_kv : src.suffixes) {
-    map<char, unique_ptr<TrieNode>>::iterator target_itr;
-    target_itr = target.find(src_kv.first);
-    if (target_itr == target.end()) {
-      target.suffixes[src_kv.first] = move(src_kv.second);
-    }
+    /* Recusive case: TrieNode of current suffix has suffixes of its own */
     else {
-      mergeNodes(target_itr->second.get(), src_kv.second.get());
+      /* push child info onto the stack to move deeper into the prefix tree */
+      TrieNode* next_node = stack_top.suffix->second.get();
+      SuffixesTItr next_suffix = next_node->suffixes.begin();
+      string next_prefix = stack_top.prefix + next_suffix->first;
+      delete_stack.push({next_node, next_prefix, next_suffix});
     }
+
+    /* tail recursive call to remove subtree */
+    removeSubtree(&delete_stack);
   }
-
-  // clear the node 
-  src->suffixes.clear();
-}*/
-
-int Lexicon::size() const {
-  return size_;
 }
-
-set<string> Lexicon::toSTLSet() {
-  vector<string> word_list = toSTLHelper(root_.get());
-  /* convert vector to set without copying elements */
-  set<string> word_set (make_move_iterator(word_list.begin()),
-      make_move_iterator(word_list.end()));
-
-  return word_set;
-}
-
-vector<string> Lexicon::toSTLHelper(TrieNode* curr) {
-  vector<string> node_words;
-  for (auto& key_value : curr->suffixes) {
-    vector<string> child_words = toSTLHelper(key_value.second.get());
-    for (auto& cw : child_words) {
-      node_words.emplace_back(key_value.first + cw);
-    }
-    /* when you reach the deepest node, simply add the current letter onto the
-     * the list of words */
-    if (child_words.empty()) {
-      string s = "";
-      s += key_value.first;
-      node_words.emplace_back(s);
-    }
-  }
-  return node_words;
-}
-
-void Lexicon::toString() const {}
-
-ostream& operator <<(std::ostream& os, const Lexicon& lex) {}
-
-istream& operator >>(std::istream& is, Lexicon& lex) {}
 
 const Lexicon::TrieNode* Lexicon::findNode(const std::string& str) const {
   TrieNode* curr = root_.get();
@@ -236,4 +220,25 @@ Lexicon::TrieNode* Lexicon::ensureNodeExists(const std::string& str) {
   }
   return curr;
 }
+
+//vector<string> Lexicon::toSTLHelper(TrieNode* curr) {
+//  vector<string> node_words;
+//  for (auto& key_value : curr->suffixes) {
+//    vector<string> child_words = toSTLHelper(key_value.second.get());
+//    for (auto& cw : child_words) {
+//      node_words.emplace_back(key_value.first + cw);
+//    }
+//    /* when you reach the deepest node, simply add the current letter onto the
+//     * the list of words */
+//    if (child_words.empty()) {
+//      string s = "";
+//      s += key_value.first;
+//      node_words.emplace_back(s);
+//    }
+//  }
+//  return node_words;
+//}
+
+//istream& operator >>(istream& in, Lexicon& lex) {}
+
 
