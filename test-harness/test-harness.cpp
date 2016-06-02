@@ -202,7 +202,8 @@ void BasicLexiconTest() try {
   FailTest(e);
 }
 
-//void BasicLexiconTest() try {
+// TODO: Many more unit test cases required
+//void HardLexiconTest() try {
 //#if BasicLexiconTestEnabled
 //
 //  EndTest();
@@ -232,16 +233,8 @@ void BasicLexiconTest() try {
 int main() {
   EmptyLexiconTest();
   BasicLexiconTest();
-#if (BasicKDTreeTestEnabled && \
-     ModerateKDTreeTestEnabled && \
-     HarderKDTreeTestEnabled &&   \
-     EdgeCaseKDTreeTestEnabled && \
-     MutatingKDTreeTestEnabled && \
-     ThrowingKDTreeTestEnabled &&  \
-     NearestNeighborTestEnabled &&  \
-     MoreNearestNeighborTestEnabled && \
-     BasicCopyTestEnabled && \
-     ModerateCopyTestEnabled)
+#if (EmptyLexiconTestEnabled && \
+     BasicLexiconTestEnabled)
   cout << "All tests completed!  If they passed, you should be good to go!" << endl << endl;
 #else
   cout << "Not all tests were run.  Enable the rest of the tests, then run again." << endl << endl;
